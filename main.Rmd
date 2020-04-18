@@ -20,7 +20,6 @@ library(dplyr)
 filter.data <- function(data.set) {
   data.set <- data.set %>%
     rename(
-    happ_rank = `Happiness Rank`,
     happ_score = `Happiness Score`,
     GDP = `Economy (GDP per Capita)`,
     family = Family,
@@ -28,7 +27,7 @@ filter.data <- function(data.set) {
     freedom = Freedom,
     trust = `Trust (Government Corruption)`,
   ) %>%
-  select(-c(Region, `Standard Error`, Generosity, `Dystopia Residual`, happ_rank))
+  select(c(Country, happ_score, GDP, family, health, freedom, trust))
   return(data.set)
 }
 ```
@@ -51,6 +50,7 @@ round(corr_matrix, 2)
 corrplot(corr_matrix, type = "upper", order = "hclust", 
          tl.col = "black", tl.srt = 45)
 ```
+
 The correlation matrix shows us correlation between all the variables, however we are most interested in variables higly correlated with Happiness Score. 
 From this approach we can define family, GDP and health system to be significant but let`s use one more approach.
 
@@ -72,7 +72,9 @@ summary(lm.model1)
 randForest.selection <- randomForest(happ_score ~., data=model.data)
 importance(randForest.selection)
 ```
+
 From the summary of both algorithms, we should definetely exclude trust feature because it isn`t significant.
+
 ### Data visualization 1
 ```{r}
 plot(data.2015$GDP, data.2015$happ_score,  xlab= "GDP per capita", ylab = "Happiness Score", main = "2015 GDP vs Happiness Score")
@@ -83,10 +85,6 @@ plot(data.2015$health, data.2015$happ_score, xlab = "Health", ylab= "Happiness S
 
 plot(data.2015$freedom, data.2015$happ_score, xlab = "Freedom", ylab= "Happiness Score", main = "2015 Freedom vs Happiness Score")
 #not strong correlation
-
-```
-### Data visualization 2
-```{r}
 
 ```
 
@@ -102,11 +100,138 @@ data.2015.lmodel <- lm(happ_score ~ GDP + family + health, data = data.2015)
 summary(data.2015.lmodel)
 y <- data.2015$happ_score
 x <- data.2015$GDP + data.2015$family + data.2015$health
-f <- ggplot(data = data.2015, aes(GDP + family + health, happ_score)) + geom_point() + geom_smooth(method = lm, formula = y ~ x)
-#lets test for heteroskedasticity
+ggplot(data = data.2015, aes(GDP + family + health, happ_score)) + geom_point() + geom_smooth(method = lm, formula = y ~ x)
+
+```
+
+### Analysis of residuals and test for heteroscedasticity
+```{r}
 model_fitted <- data.2015$happ_score - residuals(data.2015.lmodel)
 model_fitted
 plot(model_fitted, residuals(data.2015.lmodel))
 abline(h=0)
 ```
 
+Here the residuals are distributed more or less equally arounf the mean and we can`t observe a trend that the variance increases as the value increase, so heteroscedasticity is also absent here. 
+As we can see our model suggest quite a good fit, but I still will try to improve it.
+
+### Time-Series Evolution Vizualization
+```{r}
+#load more data
+data.2016 <- read_csv("world-happiness/2016.csv")
+data.2017 <- read_csv("world-happiness/2017.csv")
+data.2018 <- read_csv("world-happiness/2018.csv")
+data.2019 <- read_csv("world-happiness/2019.csv")
+data.2016 <- filter.data(data.2016)
+#standartize the data
+data.2017 <- data.2017 %>% rename(
+  happ_score = Happiness.Score,
+  GDP = Economy..GDP.per.Capita.,
+  family = Family, 
+  health = Health..Life.Expectancy.,
+  freedom = Freedom,
+)
+data.2018 <- data.2018 %>% rename(
+  Country = `Country or region`,
+  happ_score = Score,
+  GDP = `GDP per capita`,
+  #no family, I add NA
+  health = `Healthy life expectancy`,
+  freedom = `Freedom to make life choices`
+)
+data.2019 <- data.2019 %>% rename(
+  Country = `Country or region`,
+  happ_score = Score,
+  GDP = `GDP per capita`,
+  #no family, I add NA in a loop
+  health = `Healthy life expectancy`,
+  freedom = `Freedom to make life choices`
+)
+
+data.lst <- list(data.2016, data.2017, data.2018, data.2019)
+top.lst <- list();
+full.lst <- list();
+#filter, clean up and select top countries 
+i <- 1
+for (data.set_i in 1:length(data.lst)) {
+  if ("family" %in% colnames(data.lst[[data.set_i]])) {
+    new.set <- data.lst[[data.set_i]] %>% select(c(Country, happ_score, GDP, family, health, freedom))
+  } else {
+    new.set <- data.lst[[data.set_i]] %>% select(c(Country, happ_score, GDP, health, freedom))
+    new.set$family = NA
+    
+  }
+  new.set$year = toString(2015 + i)
+  top.lst[[i]] <- new.set %>% filter(new.set[2] > 7)
+  full.lst[[i]] <- new.set
+  i <- i + 1
+}
+
+top.2015 <- data.2015 %>% filter(data.2015[2] > 7) %>% select(c(Country, happ_score, GDP, family, health, freedom))
+top.2015$year = "2015"
+
+merged.set <- rbind(top.2015, top.lst[[1]], top.lst[[2]], top.lst[[3]], top.lst[[4]])
+merged.set
+```
+
+```{r}
+require(ggplot2)
+require(dplyr)
+require(plotly)
+library(ggplot2)
+library(dplyr)
+library(plotly)
+p <- merged.set %>% ggplot(aes(x = year, y = happ_score, colour = Country, group = Country)) + geom_line() + ylab("Happiness Score") + xlab("Year")
+p
+
+```
+We see how happiness rate changed over years and I suggest examine the most interesting cases seperately.
+We see a big decline of happiness score in Austria in 2017 which was then followed by dramatic increase.
+Also, United States has completely missing data in the time range between 2016 and 2018 which means that its value dropped under 7.0.
+
+### Dramatic Cases Examination
+# Austria
+```{r}
+austria.time.info <- merged.set %>% filter(merged.set[1] == "Austria")
+austria.time.info
+
+par(mfrow=c(2,2))
+plot(austria.time.info$year, austria.time.info$happ_score, type="o", xlab= "Year", ylab = "Happiness Score")
+plot(austria.time.info$year, austria.time.info$GDP, type="o", xlab= "Year", ylab = "GDP")
+plot(austria.time.info$year, austria.time.info$health, type="o", xlab= "Year", ylab = "Health")
+plot(austria.time.info$year, austria.time.info$freedom, type="o", xlab= "Year", ylab = "Freedom")
+```
+
+# United States
+```{r}
+data.2015$year = "2015"
+
+merged.set.2 <- rbind(data.2015 %>% select(-c(trust)), full.lst[[1]], full.lst[[2]], full.lst[[3]], full.lst[[4]])
+merged.set.2
+united.states.info <- merged.set.2 %>% filter(merged.set.2[1] == "United States")
+united.states.info
+
+par(mfrow=c(2,2))
+plot(united.states.info$year, united.states.info$happ_score, type="o", xlab= "Year", ylab = "Happiness Score")
+plot(united.states.info$year, united.states.info$GDP, type="o", xlab= "Year", ylab = "GDP")
+plot(united.states.info$year, united.states.info$health, type="o", xlab= "Year", ylab = "Health")
+plot(united.states.info$year, united.states.info$freedom, type="o", xlab= "Year", ylab = "Freedom")
+
+```
+
+# Finland
+```{r}
+finland.info <- merged.set.2 %>% filter(merged.set.2[1] == "Finland")
+finland.info
+
+par(mfrow=c(2,2))
+plot(finland.info$year, finland.info$happ_score, type="o", xlab= "Year", ylab = "Happiness Score")
+plot(finland.info$year, finland.info$GDP, type="o", xlab= "Year", ylab = "GDP")
+plot(finland.info$year, finland.info$health, type="o", xlab= "Year", ylab = "Health")
+plot(finland.info$year, finland.info$freedom, type="o", xlab= "Year", ylab = "Freedom")
+
+```
+
+From now on, we can state that GDP and happiness score are not perfectly correlated and it does not always explain the happiness rate in country. While health almost always has the same curve as happiness rate.
+
+So, now I suggest adding to our model some factors which describe cultural life of the country and see if they improve the model.
