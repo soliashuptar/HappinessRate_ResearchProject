@@ -11,6 +11,7 @@ data.2015 <- read_csv("world-happiness/2015.csv")
 head(data.2015)
 tail(data.2015)
 ```
+
 ### Filtering the data and making it more comfortable for usage
 ```{r}
 require(dplyr)
@@ -27,22 +28,26 @@ filter.data <- function(data.set) {
     freedom = Freedom,
     trust = `Trust (Government Corruption)`,
   ) %>%
-  select(c(Country, happ_score, GDP, family, health, freedom, trust))
+  select(c(Country, Region, happ_score, GDP, family, health, freedom, trust))
   return(data.set)
 }
 ```
+
 ```{r}
 #Updated data
 #variables left: country, happ_score, GDP, family, health, freedom, trust
 data.2015 <-filter.data(data.2015)
 ```
+
 ### Building a correlation matrix to find the most important variables
 ```{r}
 require(corrplot)
 library(corrplot)
 require(PerformanceAnalytics)
 library("PerformanceAnalytics")
-cor_data <- data.2015[, c(2, 3, 4, 5, 6)]
+data.2015
+cor_data <- data.2015[, c(3, 4, 5, 6, 7, 8)]
+
 corr_matrix <- cor(cor_data)
 #simple correlation matrix
 round(corr_matrix, 2)
@@ -51,19 +56,52 @@ corrplot(corr_matrix, type = "upper", order = "hclust",
          tl.col = "black", tl.srt = 45)
 ```
 
+### Correaltion hypothesis testing
+```{r}
+require(ggplot2)
+require(dplyr)
+require(plotly)
+library(ggplot2)
+#Correaltion hypothesis testing
+cor.test(data.2015$happ_score, data.2015$GDP)
+cor.test(data.2015$happ_score, data.2015$trust)
+cor.test(data.2015$happ_score, data.2015$family)
+cor.test(data.2015$happ_score, data.2015$health)
+cor.test(data.2015$happ_score, data.2015$freedom)
+
+ggplot(data = data.2015, aes(x=data.2015$happ_score)) + geom_histogram(binwidth = 0.3)
+
+t.test(data.2015$happ_score, data.2015$GDP, data = data.2015)
+```
+
 The correlation matrix shows us correlation between all the variables, however we are most interested in variables higly correlated with Happiness Score. 
 From this approach we can define family, GDP and health system to be significant but let`s use one more approach.
+```{r}
+data.2015.europe <- data.2015 %>% filter(data.2015[2] == "Western Europe" | data.2015[2] == "Central and Eastern Europe")
+data.2015.north.america <- data.2015 %>% filter(data.2015[2] == "North America")
+data.2015.australia.newzeland <- data.2015 %>% filter(data.2015[2] == "Australia and New Zealand")
+data.2015.middle.east.africa <- data.2015 %>% filter(data.2015[2] == "Middle East and Northern Africa" | data.2015[2] == 'Sub-Saharan Africa')
+data.2015.latin.america <- data.2015 %>% filter(data.2015[2] == "Latin America and Caribbean")
+data.2015.asia <- data.2015 %>% filter(data.2015[2] == "Southeastern Asia" | data.2015[2] == "Eastern Asia")
+
+#correlation matrix of factors by region
+corrplot(cor(data.2015.europe[, c(3, 4, 5, 6, 7, 8)]), order = "hclust",type = "upper", mar=c(0,0,1,0), tl.col = "black", tl.srt = 45, title = "Correlation matrix for Europe")
+
+corrplot(cor(data.2015.north.america[, c(3, 4, 5, 6, 7, 8)]), type = "upper", order = "hclust", mar=c(0,0,1,0), tl.col = "black", tl.srt = 45, title = "Correlation matrix for North America")
+corrplot(cor(data.2015.australia.newzeland[, c(3, 4, 5, 6, 7, 8)]), type = "upper", order = "hclust", mar=c(0,0,1,0), tl.col = "black", tl.srt = 45, title = "Correlation matrix for Australia and New Zeland")
+corrplot(cor(data.2015.middle.east.africa[, c(3, 4, 5, 6, 7, 8)]), type = "upper", order = "hclust", mar=c(0,0,1,0), tl.col = "black", tl.srt = 45, title = "Correlation matrix for Middle East and Africa")
+corrplot(cor(data.2015.latin.america[, c(3, 4, 5, 6, 7, 8)]), type = "upper", order = "hclust", mar=c(0,0,1,0), tl.col = "black", tl.srt = 45, title = "Correlation matrix for Latin America")
+corrplot(cor(data.2015.asia[, c(3, 4, 5, 6, 7, 8)]), type = "upper", order = "hclust", mar=c(0,0,1,0), tl.col = "black", tl.srt = 45, title = "Correlation matrix for Asia")
+```
 
 ### Using Random Forest for variable selection
 ```{r}
 require("mlbench")
-library(mlbench)
 require("caret")
-require(caret)
-library(caret)
 library(randomForest)
+library('jtools')
 
-model.data <- data.2015[c(2, 3, 4, 5,6, 7)]
+model.data <- data.2015[c(3, 4, 5,6, 7, 8)]
 #simple linear model
 lm.model1 <- lm(happ_score ~., data=model.data)
 summary(lm.model1)
@@ -71,12 +109,15 @@ summary(lm.model1)
 #random forest approach
 randForest.selection <- randomForest(happ_score ~., data=model.data)
 importance(randForest.selection)
+
+summ(lm.model1)
 ```
 
 From the summary of both algorithms, we should definetely exclude trust feature because it isn`t significant.
 
 ### Data visualization 1
 ```{r}
+par(mfrow=c(2,2))
 plot(data.2015$GDP, data.2015$happ_score,  xlab= "GDP per capita", ylab = "Happiness Score", main = "2015 GDP vs Happiness Score")
 #we see linear relationship between parameters
 plot(data.2015$family, data.2015$happ_score, xlab = "Family", ylab= "Happiness Score", main = "2015 Family vs Happiness Score")
@@ -96,58 +137,103 @@ y <- data.2015$happ_score
 x <- data.2015$GDP
 ggplot(data = data.2015, aes(GDP, happ_score)) + geom_point() + geom_smooth(method = lm, formula = y ~ x)
 
-data.2015.lmodel <- lm(happ_score ~ GDP + family + health, data = data.2015)
-summary(data.2015.lmodel)
+data.2015.lmodelGDP.family <- lm(happ_score ~ GDP + family , data = data.2015)
+summary(data.2015.lmodelGDP.family)
+y <- data.2015$happ_score
+x <- data.2015$GDP + data.2015$family
+ggplot(data = data.2015, aes(GDP, happ_score)) + geom_point() + geom_smooth(method = lm, formula = y ~ x)
+
+data.2015.lmodelGDP.family.health <- lm(happ_score ~ GDP + family + health, data = data.2015)
+summary(data.2015.lmodelGDP.family.health)
 y <- data.2015$happ_score
 x <- data.2015$GDP + data.2015$family + data.2015$health
-ggplot(data = data.2015, aes(GDP + family + health, happ_score)) + geom_point() + geom_smooth(method = lm, formula = y ~ x)
+ggplot(data = data.2015, aes(GDP + family + health, happ_score)) + geom_point()  +  geom_smooth(method = lm, formula = y ~ x)
 
+data.2015.lmodel.full <- lm(happ_score ~ GDP + family + health + freedom, data = data.2015)
+summary(data.2015.lmodel.full)
+y <- data.2015$happ_score
+x <- data.2015$GDP + data.2015$family + data.2015$health + data.2015$freedom
+ggplot(data = data.2015, aes(GDP + family + health + freedom, happ_score)) + geom_point()  +  geom_smooth(method = lm, formula = y ~ x)
+
+#report-friendly format
+export_summs(data.2015.lmodelGDP, data.2015.lmodelGDP.family, data.2015.lmodelGDP.family.health, data.2015.lmodel.full, scale= TRUE,  model.names = c("GDP only", "GDP and family only", "GDP, family and health", "All feat. included"))
 ```
-
 ### Analysis of residuals and test for heteroscedasticity
 ```{r}
-model_fitted <- data.2015$happ_score - residuals(data.2015.lmodel)
-model_fitted
-plot(model_fitted, residuals(data.2015.lmodel))
+model_fitted <- data.2015$happ_score - residuals(data.2015.lmodel.full)
+plot(model_fitted, residuals(data.2015.lmodel.full), ylab="Residuals")
 abline(h=0)
 ```
 
-Here the residuals are distributed more or less equally arounf the mean and we can`t observe a trend that the variance increases as the value increase, so heteroscedasticity is also absent here. 
-As we can see our model suggest quite a good fit, but I still will try to improve it.
+Here the residuals are distributed more or less equally around the mean and we can't observe a trend that the variance increases as the value increases, so heteroscedasticity is not present here. 
+Summary of linear models prove our assumptions about significance of the variables. Adding them one by one improves our model.
+Also we observe that when freedom is added to the model, health becomes a little less significant.
+However, using this simple linear model I assume that observations are not related with each other within certain groups. 
+But, I want to regress the happiness score based on the region, because previously we observed that correlation matrices of features vary from region to region.
+So, I perform linear regression on the clustered by region.
 
-### Time-Series Evolution Vizualization
+This means that we assume independence across clusters but correlation within clusters.
+
+### Clustered Data Linear Model
+```{r}
+library(lmtest)
+library(multiwayvcov)
+data.2015.lmodel.full.clustered <- miceadds::lm.cluster(data=data.2015, formula = happ_score ~ GDP + family + health + freedom, cluster = "Region")
+
+coef(data.2015.lmodel.full.clustered)
+vcov(data.2015.lmodel.full.clustered)
+summary(data.2015.lmodel.full.clustered)
+
+#for comfortable comparisonv
+print("Regular model")
+summary(data.2015.lmodel.full)
+print("Clustered SE")
+summary(data.2015.lmodel.full.clustered)
+```
+
+After we clustered the data, generally standard error of estimates became lower but std.error of freedom increased, t-statistics is also lower.
+
+### Time-Series Evolution Visualization
 ```{r}
 #load more data
 data.2016 <- read_csv("world-happiness/2016.csv")
 data.2017 <- read_csv("world-happiness/2017.csv")
 data.2018 <- read_csv("world-happiness/2018.csv")
 data.2019 <- read_csv("world-happiness/2019.csv")
-data.2016 <- filter.data(data.2016)
-#standartize the data
+
+#data in 2017-2019 does not have Region column so I merge it by country with 2016 dataset and select desired columns
+data.2017 <- merge(data.2017, data.2016, by = c("Country"))
 data.2017 <- data.2017 %>% rename(
   happ_score = Happiness.Score,
   GDP = Economy..GDP.per.Capita.,
-  family = Family, 
-  health = Health..Life.Expectancy.,
-  freedom = Freedom,
-)
+  family = Family.x, 
+  health = Health..Life.Expectancy., 
+  freedom = Freedom.x
+) %>% select(c(Country, Region, happ_score, GDP, family, health, freedom))
+data.2017 <-  data.2017[order(-data.2017[3]), ]
+#standartize the data
 data.2018 <- data.2018 %>% rename(
-  Country = `Country or region`,
+  Country = `Country or region`)
+data.2018 <- merge(data.2018, data.2016, by = c("Country"))
+data.2018 <- data.2018 %>% rename(
   happ_score = Score,
   GDP = `GDP per capita`,
   #no family, I add NA
   health = `Healthy life expectancy`,
   freedom = `Freedom to make life choices`
 )
+
 data.2019 <- data.2019 %>% rename(
-  Country = `Country or region`,
+  Country = `Country or region`)
+data.2019 <- merge(data.2019, data.2016, by = c("Country"))
+data.2019 <- data.2019 %>% rename(
   happ_score = Score,
   GDP = `GDP per capita`,
   #no family, I add NA in a loop
   health = `Healthy life expectancy`,
   freedom = `Freedom to make life choices`
 )
-
+data.2016 <- filter.data(data.2016)
 data.lst <- list(data.2016, data.2017, data.2018, data.2019)
 top.lst <- list();
 full.lst <- list();
@@ -155,23 +241,24 @@ full.lst <- list();
 i <- 1
 for (data.set_i in 1:length(data.lst)) {
   if ("family" %in% colnames(data.lst[[data.set_i]])) {
-    new.set <- data.lst[[data.set_i]] %>% select(c(Country, happ_score, GDP, family, health, freedom))
+    new.set <- data.lst[[data.set_i]] %>% select(c(Country, Region, happ_score, GDP, family, health, freedom))
   } else {
-    new.set <- data.lst[[data.set_i]] %>% select(c(Country, happ_score, GDP, health, freedom))
+    new.set <- data.lst[[data.set_i]] %>% select(c(Country, Region, happ_score, GDP, health, freedom))
     new.set$family = NA
     
   }
   new.set$year = toString(2015 + i)
-  top.lst[[i]] <- new.set %>% filter(new.set[2] > 7)
+  top.lst[[i]] <- new.set %>% filter(new.set[3] > 7)
   full.lst[[i]] <- new.set
   i <- i + 1
 }
 
-top.2015 <- data.2015 %>% filter(data.2015[2] > 7) %>% select(c(Country, happ_score, GDP, family, health, freedom))
+top.2015 <- data.2015 %>% filter(data.2015[3] > 7) %>% select(c(Country, Region, happ_score, GDP, family, health, freedom))
 top.2015$year = "2015"
 
-merged.set <- rbind(top.2015, top.lst[[1]], top.lst[[2]], top.lst[[3]], top.lst[[4]])
-merged.set
+#merged set over years with top counties whose happiness score was over 7
+merged.set.top.countries <- rbind(top.2015, top.lst[[1]], top.lst[[2]], top.lst[[3]], top.lst[[4]])
+head(merged.set.top.countries)
 ```
 
 ```{r}
@@ -181,18 +268,19 @@ require(plotly)
 library(ggplot2)
 library(dplyr)
 library(plotly)
-p <- merged.set %>% ggplot(aes(x = year, y = happ_score, colour = Country, group = Country)) + geom_line() + ylab("Happiness Score") + xlab("Year")
+p <- merged.set.top.countries %>% ggplot(aes(x = year, y = happ_score, colour = Country, group = Country)) + geom_line() + ylab("Happiness Score") + xlab("Year")
 p
 
 ```
-We see how happiness rate changed over years and I suggest examine the most interesting cases seperately.
-We see a big decline of happiness score in Austria in 2017 which was then followed by dramatic increase.
-Also, United States has completely missing data in the time range between 2016 and 2018 which means that its value dropped under 7.0.
 
-### Dramatic Cases Examination
-# Austria
+We see how the happiness rate changed over years and I decided to examine the most interesting cases separately.
+We see a big decline in happiness score in Austria in 2017 which was then followed by dramatic increase.
+Also, the United States has completely missing data on the graph in the time range between 2016 and 2018 which means that its value dropped under 7.0.
+
+## Dramatic Cases Examination
+### Austria
 ```{r}
-austria.time.info <- merged.set %>% filter(merged.set[1] == "Austria")
+austria.time.info <- merged.set.top.countries %>% filter(merged.set.top.countries[1] == "Austria")
 austria.time.info
 
 par(mfrow=c(2,2))
@@ -202,14 +290,13 @@ plot(austria.time.info$year, austria.time.info$health, type="o", xlab= "Year", y
 plot(austria.time.info$year, austria.time.info$freedom, type="o", xlab= "Year", ylab = "Freedom")
 ```
 
-# United States
+### United States
 ```{r}
 data.2015$year = "2015"
 
+#merge set with the rest of counties out of top list
 merged.set.2 <- rbind(data.2015 %>% select(-c(trust)), full.lst[[1]], full.lst[[2]], full.lst[[3]], full.lst[[4]])
-merged.set.2
 united.states.info <- merged.set.2 %>% filter(merged.set.2[1] == "United States")
-united.states.info
 
 par(mfrow=c(2,2))
 plot(united.states.info$year, united.states.info$happ_score, type="o", xlab= "Year", ylab = "Happiness Score")
@@ -219,10 +306,9 @@ plot(united.states.info$year, united.states.info$freedom, type="o", xlab= "Year"
 
 ```
 
-# Finland
+## Finland
 ```{r}
 finland.info <- merged.set.2 %>% filter(merged.set.2[1] == "Finland")
-finland.info
 
 par(mfrow=c(2,2))
 plot(finland.info$year, finland.info$happ_score, type="o", xlab= "Year", ylab = "Happiness Score")
@@ -232,6 +318,478 @@ plot(finland.info$year, finland.info$freedom, type="o", xlab= "Year", ylab = "Fr
 
 ```
 
-From now on, we can state that GDP and happiness score are not perfectly correlated and it does not always explain the happiness rate in country. While health almost always has the same curve as happiness rate.
+From now on, we can state that GDP and happiness score are not perfectly correlated and it does not always explain the happiness rate in the country. While health almost always has the same curve as happiness rate.
 
 So, now I suggest adding to our model some factors which describe cultural life of the country and see if they improve the model.
+
+```{r}
+library(readr)
+library(dplyr)
+#read primary education data
+primary.educ <- read.csv("enrolment_primary_educ.csv")
+primary.educ <- primary.educ %>% filter(primary.educ[6] > 2014 & primary.educ[6] <=2017)
+#read population data and format it
+population <- read_csv("population.csv")
+population <- population %>% select(c(`Country Name`,`2015`, `2016`, `2017`))
+population <- population[rep(seq_len(nrow(population)), each=3), ]
+#add years as rows
+population$year = c(2015, 2016, 2017)
+
+population.copy <- population[c(2, 3, 4)]
+
+#fucntion for chossing every y row
+nrowgen <- function(x, y) {
+  n <- nrow(x)
+  b <- seq(1, n, y)
+  r <- length(b)
+  c <- data.frame()
+  for ( i in 1:r) {
+    abc <- x[b[i], ]
+    c <- rbind(c, abc)
+  }
+  return(c)
+}
+population.values <- nrowgen(population.copy, 3)
+
+#adding all population numbers to one vector
+population.values.vector <- c();
+names(population.values) <- NULL
+for (i in 1:nrow(population.values)) {
+  population.values.vector <- c(population.values.vector,unlist(c(population.values[i, ])) )
+}
+population$pop_number = population.values.vector
+population <- population %>% select(c(`Country Name`, year, pop_number))
+primary.educ <- primary.educ %>% select(c(Indicator, Country, Time, Value))
+
+population <- population %>% rename(
+  Country = `Country Name`,
+  Time = year
+)
+#final population dataset, formatted
+#merged population with primary educ
+primary.educ.merged <- merge(primary.educ, population, by=c("Country", "Time"))
+```
+```{r}
+secondary.educ <- read_csv("enrolment_secondary_educ.csv")
+secondary.educ <- secondary.educ %>% filter(secondary.educ[6] > 2014 & secondary.educ[6] <=2017)
+secondary.educ <- secondary.educ %>% select(c(Indicator, Country, Time, Value))
+secondary.educ.merged <- merge(secondary.educ, population, by=c("Country", "Time"))
+```
+```{r}
+tertiary.educ <- read_csv("enrolment_tertiary_educ.csv")
+tertiary.educ <- tertiary.educ %>% filter(tertiary.educ[6] > 2014 & tertiary.educ[6] <=2017)
+tertiary.educ <- tertiary.educ %>% select(c(Indicator, Country, Time, Value))
+tertiary.educ.merged <- merge(tertiary.educ, population, by=c("Country", "Time"))
+```
+```{r}
+#enrolment in primary education for 2015
+primary.educ.merged.2015 <- primary.educ.merged %>% filter(primary.educ.merged[2] == 2015)
+data.2015 <- merge(data.2015, primary.educ.merged.2015[c(1, 4, 5)], by=c("Country"))
+data.2015 <- data.2015 %>% rename(
+  value_primary = Value
+)
+data.2015$ratio_primary <- data.2015[, "value_primary"] / data.2015[, "pop_number"]
+
+secondary.educ.merged.2015 <- secondary.educ.merged %>% filter(secondary.educ.merged[2] == 2015)
+data.2015 <- merge(data.2015, secondary.educ.merged.2015[c(1, 4, 5)], by=c("Country"))
+data.2015 <- data.2015 %>% rename(
+  value_secondary = Value
+) %>% select(-c(pop_number.y))
+data.2015$ratio_secondary <- data.2015[, "value_secondary"] / data.2015[, "pop_number.x"]
+
+tertiary.educ.merged.2015 <- tertiary.educ.merged %>% filter(tertiary.educ.merged[2] == 2015)
+data.2015 <- merge(data.2015, tertiary.educ.merged.2015[c(1, 4, 5)], by=c("Country"))
+data.2015 <- data.2015 %>% rename(
+  value_tertiary = Value
+) %>% select(-c(pop_number))
+data.2015$ratio_tertiary <- data.2015[, "value_tertiary"] / data.2015[, "pop_number.x"]
+
+```
+
+### Linear Model including education feature
+```{r}
+data.2015.lmodel.full.educ <- lm(happ_score ~ GDP + family + health + freedom + ratio_primary + ratio_secondary + ratio_tertiary , data = data.2015)
+summary(data.2015.lmodel.full.educ)
+y <- data.2015$happ_score
+x <- data.2015$GDP + data.2015$family + data.2015$health + data.2015$freedom + data.2015$ratio_primary + data.2015$ratio_secondary + data.2015$ratio_tertiary
+ggplot(data = data.2015, aes(GDP + family + health + freedom + ratio_primary + ratio_secondary + ratio_tertiary, happ_score)) + geom_point()  +  geom_smooth(method = lm, formula = y ~ x)
+
+
+```
+
+### Clustered Model including enrolment in education
+```{r}
+library(lmtest)
+library(multiwayvcov)
+data.2015.lmodel.full.clustered.educ <- miceadds::lm.cluster(data=data.2015, formula = happ_score ~ GDP + family + health + freedom + ratio_primary + ratio_secondary , cluster = "Region")
+
+coef(data.2015.lmodel.full.clustered.educ)
+vcov(data.2015.lmodel.full.clustered.educ)
+
+summary(data.2015.lmodel.full.clustered.educ)
+
+
+
+model_fitted <- data.2015$happ_score - residuals(data.2015.lmodel.full.educ)
+plot(model_fitted, residuals(data.2015.lmodel.full.educ))
+abline(h=0)
+
+```
+
+## Pooled Data
+```{r}
+# fuction for adding education to the dataset
+educ.to.dataset <- function(data.set, year) {
+  primary.educ.merged.new <- primary.educ.merged %>% filter(primary.educ.merged[2] == year)
+  primary.educ.merged.new
+  data.set <- merge(data.set, primary.educ.merged.new[c(1, 4, 5)], by=c("Country"))
+  data.set <- data.set %>% rename(
+    value_primary = Value
+  )
+  data.set$ratio_primary <- data.set[, "value_primary"] / data.set[, "pop_number"]
+  
+  secondary.educ.merged.new <- secondary.educ.merged %>% filter(secondary.educ.merged[2] == year)
+  secondary.educ.merged.new
+  data.set <- merge(data.set, secondary.educ.merged.new[c(1, 4, 5)], by=c("Country"))
+  data.set <- data.set %>% rename(
+    value_secondary = Value
+  ) %>% select(-c(pop_number.y))
+  data.set$ratio_secondary <- data.set[, "value_secondary"] / data.set[, "pop_number.x"]
+  
+  tertiary.educ.merged.new <- tertiary.educ.merged %>% filter(tertiary.educ.merged[2] == year)
+  tertiary.educ.merged.new
+  data.set <- merge(data.set, tertiary.educ.merged.new[c(1, 4, 5)], by=c("Country"))
+  data.set
+  data.set <- data.set %>% rename(
+    value_tertiary = Value
+  ) %>% select(-c(pop_number))
+  data.set$ratio_tertiary <- data.set[, "value_tertiary"] / data.set[, "pop_number.x"]
+  data.set
+  return(data.set)
+}
+```
+
+```{r}
+data.2016 <- educ.to.dataset(data.2016, 2016)
+```
+
+```{r}
+data.2017$year = 2017
+data.2017 <- educ.to.dataset(data.2017, 2017)
+```
+
+### Science Development feature
+```{r}
+science_development <- read_csv("culture/science_development.csv")
+science_development <- science_development %>% filter(science_development[5] == 2015 | science_development[5] == 2016 | science_development[5] == 2017)
+science_development <- science_development %>% filter(science_development[2] == 'Total R&D personnel (FTE) - Total')
+                                                      
+science_development <- science_development %>% rename(
+  year = Time,
+  value_science_develop = Value) %>% select(c(Country, year, value_science_develop))
+
+science.development.2015 <- science_development %>% filter(science_development[2] == 2015)
+data.2015 <- merge(data.2015, science.development.2015[c(1, 3)], by="Country")
+data.2015$ratio_science_develop <- data.2015[, "value_science_develop"] / data.2015[, "pop_number.x"]
+
+science.development.2016 <- science_development %>% filter(science_development[2] == 2016)
+data.2016 <- merge(data.2016, science.development.2016[c(1, 3)], by="Country")
+data.2016$ratio_science_develop <- data.2016[, "value_science_develop"] / data.2016[, "pop_number.x"]
+
+science.development.2017 <- science_development %>% filter(science_development[2] == 2017)
+data.2017 <- merge(data.2017, science.development.2017[c(1, 3)], by="Country")
+data.2017$ratio_science_develop <- data.2017[, "value_science_develop"] / data.2017[, "pop_number.x"]
+
+```
+```{r}
+
+pooled.happ_score.data <- merge(data.2015, data.2016, by=c("Country"))
+pooled.happ_score.data <- pooled.happ_score.data %>% rename(
+  happ_score.2015 = happ_score.x,
+  happ_score.2016 = happ_score.y,
+  GDP.2015 = GDP.x,
+  GDP.2016 = GDP.y,
+  family.2015 = family.x,
+  family.2016 = family.y,
+  health.2015 = health.x,
+  health.2016  = health.y,
+  freedom.2015 = freedom.x,
+  freedom.2016 = freedom.y,
+  trust.2015 = trust.x,
+  trust.2016 = trust.y,
+  ratio_primary.2015 = ratio_primary.x,
+  ratio_primary.2016 = ratio_primary.y,
+  ratio_secondary.2015 = ratio_secondary.x,
+  ratio_secondary.2016 = ratio_secondary.y,
+  ratio_tertiary.2015 = ratio_tertiary.x,
+  ratio_tertiary.2016 = ratio_tertiary.y,
+  ratio_science_develop.2015 = ratio_science_develop.x,
+  ratio_science_develop.2016 = ratio_science_develop.y
+) %>% select(-c(Region.y, value_primary.x, value_secondary.x, value_tertiary.x, 
+                value_primary.y, value_secondary.y, value_tertiary.y, pop_number.x.y, value_science_develop.x, value_science_develop.y))
+
+
+pooled.happ_score.data <- merge(pooled.happ_score.data, data.2017 , by=c("Country"))
+pooled.happ_score.data <- pooled.happ_score.data %>% rename(
+  happ_score.2017 = happ_score,
+  GDP.2017 = GDP,
+  family.2017 = family,
+  health.2017 = health,
+  freedom.2017 = freedom,
+  ratio_primary.2017 = ratio_primary,
+  ratio_secondary.2017 = ratio_secondary,
+  ratio_tertiary.2017 = ratio_tertiary,
+  ratio_science_develop.2017 = ratio_science_develop
+) %>% select(-c(Region, value_primary, value_secondary, value_tertiary, pop_number.x, trust.2015, trust.2016, value_science_develop))
+pooled.happ_score.data <- pooled.happ_score.data[rep(seq_len(nrow(pooled.happ_score.data)), each=3), ]
+pooled.happ_score.data$year <- c(2015, 2016, 2017)
+```
+
+```{r}
+happ_scores.vector <- c();
+i <- 1
+while (i <= nrow(pooled.happ_score.data)) {
+  happ_scores.vector <- c(happ_scores.vector,  pooled.happ_score.data[i, 3], pooled.happ_score.data[i, 14], pooled.happ_score.data[i, 23])
+  i <- i + 3
+}
+
+pooled.happ_score.data$happ_score_pooled = happ_scores.vector
+
+i <- 1
+gdp.vector <- c();
+while (i <= nrow(pooled.happ_score.data)) {
+  gdp.vector <- c(gdp.vector,  pooled.happ_score.data[i, 4], pooled.happ_score.data[i, 15], pooled.happ_score.data[i, 24])
+  i <- i + 3
+}
+pooled.happ_score.data$gdp_pooled = gdp.vector
+
+i <- 1
+family.vector <- c();
+while (i <= nrow(pooled.happ_score.data)) {
+  family.vector <- c(family.vector,  pooled.happ_score.data[i, 5], pooled.happ_score.data[i, 16], pooled.happ_score.data[i, 25])
+  i <- i + 3
+}
+
+pooled.happ_score.data$family_pooled = family.vector
+
+i <- 1
+health.vector <- c();
+while (i <= nrow(pooled.happ_score.data)) {
+  health.vector <- c(health.vector,  pooled.happ_score.data[i, 6], pooled.happ_score.data[i, 17], pooled.happ_score.data[i, 26])
+  i <- i + 3
+}
+
+pooled.happ_score.data$health_pooled = health.vector
+
+i <- 1
+freedom.vector <- c();
+while (i <= nrow(pooled.happ_score.data)) {
+  freedom.vector <- c(freedom.vector,  pooled.happ_score.data[i, 7], pooled.happ_score.data[i, 18], pooled.happ_score.data[i, 27])
+  i <- i + 3
+}
+pooled.happ_score.data$freedom_pooled = freedom.vector
+
+i <- 1
+ratio_primary.vector <- c();
+while (i <= nrow(pooled.happ_score.data)) {
+  ratio_primary.vector <- c(ratio_primary.vector,  pooled.happ_score.data[i, 10], pooled.happ_score.data[i, 19], pooled.happ_score.data[i, 29])
+  i <- i + 3
+}
+pooled.happ_score.data$ratio_primary_pooled = ratio_primary.vector
+
+i <- 1
+ratio_secondary.vector <- c();
+while (i <= nrow(pooled.happ_score.data)) {
+  ratio_secondary.vector <- c(ratio_secondary.vector,  pooled.happ_score.data[i, 11], pooled.happ_score.data[i, 20], pooled.happ_score.data[i, 30])
+  i <- i + 3
+}
+pooled.happ_score.data$ratio_secondary_pooled = ratio_secondary.vector
+
+i <- 1
+ratio_tertiary.vector <- c();
+while (i <= nrow(pooled.happ_score.data)) {
+  ratio_tertiary.vector <- c(ratio_tertiary.vector,  pooled.happ_score.data[i, 12], pooled.happ_score.data[i, 21], pooled.happ_score.data[i, 31])
+  i <- i + 3
+}
+
+pooled.happ_score.data$ratio_tertiary_pooled = ratio_tertiary.vector
+
+
+i <- 1
+ratio_science_develop.vector <- c();
+while (i <= nrow(pooled.happ_score.data)) {
+  ratio_science_develop.vector <- c(ratio_science_develop.vector,  pooled.happ_score.data[i, 13], pooled.happ_score.data[i, 22], pooled.happ_score.data[i, 32])
+  i <- i + 3
+}
+
+pooled.happ_score.data$ratio_science_develop_pooled = ratio_science_develop.vector
+
+
+pooled.happ_score.data <- pooled.happ_score.data %>% select(c(Country, Region.x, year, happ_score_pooled, gdp_pooled, family_pooled, health_pooled, freedom_pooled, ratio_primary_pooled,ratio_secondary_pooled, ratio_tertiary_pooled, ratio_science_develop_pooled))
+
+```
+
+### Explore through vizualization
+```{r}
+plot(pooled.happ_score.data$gdp_pooled, pooled.happ_score.data$happ_score_pooled,  xlab= "GDP per capita", ylab = "Happiness Score", main = "Pooled GDP vs Happiness Score")
+#we see linear relationship between parameters
+plot(pooled.happ_score.data$family_pooled, pooled.happ_score.data$happ_score_pooled,  xlab= "Family", ylab = "Happiness Score", main = "Pooled Family vs Happiness Score")
+plot(pooled.happ_score.data$health_pooled, pooled.happ_score.data$happ_score_pooled,  xlab= "Health", ylab = "Happiness Score", main = "Pooled Health vs Happiness Score")
+plot(pooled.happ_score.data$ratio_science_develop_pooled, pooled.happ_score.data$happ_score_pooled,  xlab= "Science Development", ylab = "Happiness Score", main = "Pooled Science Develop vs Happiness Score")
+```
+
+
+## Panel models
+
+### Model with standart features given in original dataset
+```{r}
+library(plm)
+library(lmtest)
+library(multiwayvcov)
+
+pooled.ols.standardfeat <- plm(formula= pooled.happ_score.data$happ_score_pooled ~ factor(pooled.happ_score.data$Region.x) +
+                    pooled.happ_score.data$gdp_pooled + pooled.happ_score.data$family_pooled + pooled.happ_score.data$health_pooled + pooled.happ_score.data$freedom_pooled
+                  , data=pooled.happ_score.data, model="pooling", index=c("Country", "year"))
+summary(pooled.ols.standardfeat)
+```
+
+
+### Full model with education and science development features
+```{r}
+library(plm)
+library(lmtest)
+library(multiwayvcov)
+pooled.ols.full <- plm(formula= pooled.happ_score.data$happ_score_pooled ~ factor(pooled.happ_score.data$Region.x) +
+                    pooled.happ_score.data$gdp_pooled + pooled.happ_score.data$family_pooled + pooled.happ_score.data$health_pooled + pooled.happ_score.data$freedom_pooled + pooled.happ_score.data$ratio_primary_pooled + pooled.happ_score.data$ratio_secondary_pooled + pooled.happ_score.data$ratio_tertiary_pooled + pooled.happ_score.data$ratio_science_develop_pooled
+                  , data=pooled.happ_score.data, model="pooling", index=c("Country", "year"))
+summary(pooled.ols.full)
+
+#adding dummy variables
+pooled.happ_score.data$year2016_d <- ifelse(pooled.happ_score.data$year == 2016, 1, 0)
+pooled.happ_score.data$year2017_d <- ifelse(pooled.happ_score.data$year == 2017, 1, 0)
+
+#pooled with dummies
+pooled.ols.dummies <- plm(formula= pooled.happ_score.data$happ_score_pooled ~ factor(pooled.happ_score.data$Region.x) + pooled.happ_score.data$year2016_d + pooled.happ_score.data$year2017_d + 
+                    pooled.happ_score.data$gdp_pooled + pooled.happ_score.data$family_pooled + pooled.happ_score.data$health_pooled + pooled.happ_score.data$freedom_pooled + pooled.happ_score.data$ratio_primary_pooled + pooled.happ_score.data$ratio_secondary_pooled + pooled.happ_score.data$ratio_tertiary_pooled + pooled.happ_score.data$ratio_science_develop_pooled
+                  , data=pooled.happ_score.data, model="pooling", index=c("Country", "year"))
+summary(pooled.ols.dummies)
+#dummies are insignificant
+
+```
+
+### Full model. FE and RE and Haussman Test
+```{r}
+library(plm)
+library(lmtest)
+library(multiwayvcov)
+library(wooldridge)
+
+#clustered by group
+coeftest(pooled.ols.full, vcov=vcovHC(pooled.ols.full, type="sss", cluster="group"))
+
+#FE model
+fe.model <- plm(formula=pooled.happ_score.data$happ_score_pooled ~
+                    pooled.happ_score.data$gdp_pooled + pooled.happ_score.data$family_pooled + pooled.happ_score.data$health_pooled + pooled.happ_score.data$freedom_pooled + pooled.happ_score.data$ratio_primary_pooled + pooled.happ_score.data$ratio_secondary_pooled + pooled.happ_score.data$ratio_tertiary_pooled + pooled.happ_score.data$ratio_science_develop_pooled , data=pooled.happ_score.data, model="within", index=c("Country", "year"))
+summary(fe.model)
+
+#RE model
+re.model <- plm(formula=pooled.happ_score.data$happ_score_pooled  ~factor(pooled.happ_score.data$Region.x) + 
+                    pooled.happ_score.data$gdp_pooled + pooled.happ_score.data$family_pooled + pooled.happ_score.data$health_pooled + pooled.happ_score.data$freedom_pooled + pooled.happ_score.data$ratio_primary_pooled + pooled.happ_score.data$ratio_secondary_pooled + pooled.happ_score.data$ratio_tertiary_pooled + pooled.happ_score.data$ratio_science_develop_pooled , data=pooled.happ_score.data, model="random", index=c("Country", "year"))
+summary(re.model)
+
+#Hausmann Test: null hypothesis: preffered RE
+phtest(fe.model, re.model)
+# in this case we fail to reject null hypothesis
+```
+
+### Adding income as a regressor
+```{r}
+income.data <- read_csv("DP_LIVE_23042020144413075.csv")
+income.data $Country = NA
+income.data$Country[income.data$LOCATION == "AUS"] <-"Australia"
+income.data$Country[income.data$LOCATION == "BEL"] <-"Belgium"
+income.data$Country[income.data$LOCATION == "AUT"] <-"Austria"
+income.data$Country[income.data$LOCATION == "AUT"] <-"Austria"
+country.codes <- c("AUS", "BEL", "AUT", "CAN", "CZE", "DNK", "FIN", "FRA", "DEU", "GRC", "HUN", "IRL",
+                   "ITA", "JPN", "LUX", "MEX", "NLD", "NOR", "POL", "PRT", "SVK", "ESP",
+                   "SWE", "CHE", "EST", "SVN", "ISL", "CHL", "LVA", "LTU")
+
+country.names <- c("Australia", "Belgium", "Austria", "Canada", "Czechia", "Denmark", "Finland", 
+                   "France", "Germany", "Greece", "Hungary", "Ireland", "Italy", "Japan", "Luxembourgh",
+                   "Mexico", "Netherlands", "Norway", "Poland", "Portugal", "Slovakia", "Spain", "Sweden", "Switzerland", "Estonia", "Slovenia", "Iceland", "Chile", "Latvia", "Lithuania")
+
+for (i in 1:length(country.codes)) {
+  income.data$Country[income.data$LOCATION == country.codes[[i]]] <- country.names[[i]]
+}
+income.data <- income.data %>% select(c(Country, TIME, Value)) %>% rename(year = TIME, annual_income = Value)
+```
+```{r}
+pooled.happ_score.data <- merge(pooled.happ_score.data, income.data, by=c("Country", "year"))
+```
+
+### Pooled OLS with all features and income instead of GDP
+```{r}
+pooled.ols <- plm(formula= pooled.happ_score.data$happ_score_pooled ~ factor(pooled.happ_score.data$Region.x) +
+                    pooled.happ_score.data$annual_income + pooled.happ_score.data$family_pooled + pooled.happ_score.data$health_pooled + pooled.happ_score.data$freedom_pooled + pooled.happ_score.data$ratio_primary_pooled + pooled.happ_score.data$ratio_secondary_pooled + pooled.happ_score.data$ratio_tertiary_pooled + pooled.happ_score.data$ratio_science_develop_pooled
+                  , data=pooled.happ_score.data, model="pooling", index=c("Country", "year"))
+summary(pooled.ols)
+
+#by group
+coeftest(pooled.ols, vcov=vcovHC(pooled.ols, type="sss", cluster="group"))
+```
+
+### FE model with all features and income instead of GDP
+```{r}
+#FE model
+
+fe.model <- plm(formula=pooled.happ_score.data$happ_score_pooled ~
+                    pooled.happ_score.data$annual_income + pooled.happ_score.data$family_pooled + pooled.happ_score.data$health_pooled + pooled.happ_score.data$freedom_pooled + pooled.happ_score.data$ratio_primary_pooled + pooled.happ_score.data$ratio_secondary_pooled + pooled.happ_score.data$ratio_tertiary_pooled + pooled.happ_score.data$ratio_science_develop_pooled , data=pooled.happ_score.data, model="within", index=c("Country", "year"))
+summary(fe.model)
+```
+
+### RE model with all features and income instead of GDP
+```{r}
+#RE model
+re.model <- plm(formula=pooled.happ_score.data$happ_score_pooled  ~factor(pooled.happ_score.data$Region.x) + 
+                    pooled.happ_score.data$annual_income + pooled.happ_score.data$family_pooled + pooled.happ_score.data$health_pooled + pooled.happ_score.data$freedom_pooled + pooled.happ_score.data$ratio_primary_pooled + pooled.happ_score.data$ratio_secondary_pooled + pooled.happ_score.data$ratio_tertiary_pooled + pooled.happ_score.data$ratio_science_develop_pooled , data=pooled.happ_score.data, model="random", index=c("Country", "year"))
+summary(re.model)
+```
+### Hausmann Test
+```{r}
+#Hausmann Test
+phtest(fe.model, re.model)
+```
+### Decide between RE regression and simple OLS
+```{r}
+plmtest(pooled.ols, type=c("bp"))
+#use RE
+```
+
+### Pooled OLS with all features and income and GDP
+```{r}
+pooled.ols <- plm(formula= pooled.happ_score.data$happ_score_pooled ~ factor(pooled.happ_score.data$Region.x) +
+                    pooled.happ_score.data$annual_income + + pooled.happ_score.data$gdp_pooled +
+                  pooled.happ_score.data$family_pooled + pooled.happ_score.data$health_pooled + pooled.happ_score.data$freedom_pooled + pooled.happ_score.data$ratio_primary_pooled + pooled.happ_score.data$ratio_secondary_pooled + pooled.happ_score.data$ratio_tertiary_pooled + pooled.happ_score.data$ratio_science_develop_pooled
+                  , data=pooled.happ_score.data, model="pooling", index=c("Country", "year"))
+summary(pooled.ols)
+
+#by group
+coeftest(pooled.ols, vcov=vcovHC(pooled.ols, type="sss", cluster="group"))
+```
+
+### FE model with all features and income and GDP
+```{r}
+#FE model
+fe.model <- plm(formula=pooled.happ_score.data$happ_score_pooled ~ factor(pooled.happ_score.data$Region.x) +
+                    pooled.happ_score.data$annual_income + pooled.happ_score.data$gdp_pooled + pooled.happ_score.data$family_pooled + pooled.happ_score.data$health_pooled + pooled.happ_score.data$freedom_pooled + pooled.happ_score.data$ratio_primary_pooled + pooled.happ_score.data$ratio_secondary_pooled + pooled.happ_score.data$ratio_tertiary_pooled + pooled.happ_score.data$ratio_science_develop_pooled , data=pooled.happ_score.data, model="within", index=c("Country", "year"))
+summary(fe.model)
+```
+
+### RE model with all features and income and GDP
+```{r}
+#RE model
+re.model <- plm(formula=pooled.happ_score.data$happ_score_pooled  ~factor(pooled.happ_score.data$Region.x) + 
+                    pooled.happ_score.data$annual_income + pooled.happ_score.data$gdp_pooled +  pooled.happ_score.data$family_pooled + pooled.happ_score.data$health_pooled + pooled.happ_score.data$freedom_pooled + pooled.happ_score.data$ratio_primary_pooled + pooled.happ_score.data$ratio_secondary_pooled + pooled.happ_score.data$ratio_tertiary_pooled + pooled.happ_score.data$ratio_science_develop_pooled , data=pooled.happ_score.data, model="random", index=c("Country", "year"))
+summary(re.model)
+```
+
